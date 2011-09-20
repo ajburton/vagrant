@@ -2,10 +2,12 @@ Vagrant::Config.run do |config|
   # default config goes here
   config.vagrant.dotfile_name = ".vagrant"
   config.vagrant.host = :detect
+  config.vagrant.ssh_session_cache = false
 
   config.ssh.username = "vagrant"
   config.ssh.host = "127.0.0.1"
   config.ssh.forwarded_port_key = "ssh"
+  config.ssh.forwarded_port_destination = 22
   config.ssh.max_tries = 10
   config.ssh.timeout = 30
   config.ssh.private_key_path = File.expand_path("keys/vagrant", Vagrant.source_root)
@@ -17,7 +19,6 @@ Vagrant::Config.run do |config|
   config.vm.box_url = nil
   config.vm.base_mac = nil
   config.vm.forward_port("ssh", 22, 2222, :auto => true)
-  config.vm.disk_image_format = 'VMDK'
   config.vm.boot_mode = "vrdp"
   config.vm.system = :linux
 

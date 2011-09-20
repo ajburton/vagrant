@@ -1,5 +1,55 @@
-## 0.8.0 (unreleased)
+## 0.8.8 (unreleased)
 
+
+
+## 0.8.7 (September 13, 2011)
+
+  - Fix regression with remote paths from chef-solo. [GH-431]
+  - Fix issue where Vagrant crashes if `.vagrant` file becomes invalid. [GH-496]
+  - Issue a warning instead of an error for attempting to forward a port
+    <= 1024. [GH-487]
+
+## 0.8.6 (August 28, 2011)
+
+  - Fix issue with download progress not properly clearing the line. [GH-476]
+  - NFS should work properly on Fedora. [GH-450]
+  - Arguments can be specified to the `shell` provisioner via the `args` option. [GH-475]
+  - Vagrant behaves much better when there are "inaccessible" VMs. [GH-453]
+
+## 0.8.5 (August 15, 2011)
+
+Note: 0.8.3 and 0.8.4 was yanked due to RubyGems encoding issue.
+
+ - Fix SSH `exec!` to inherit proper `$PATH`. [GH-426]
+ - Chef client now accepts an empty (`nil`) run list again. [GH-429]
+ - Fix incorrect error message when running `provision` on halted VM. [GH-447]
+ - Checking guest addition versions now ignores OSE. [GH-438]
+ - Chef solo from a remote URL fixed. [GH-431]
+ - Arch linux support: host only networks and changing the host name. [GH-439] [GH-448]
+ - Chef solo `roles_path` and `data_bags_path` can only be be single paths. [GH-446]
+ - Fix `virtualbox_not_detected` error message to require 4.1.x. [GH-458]
+ - Add shortname (`hostname -s`) for hostname setting on RHEL systems. [GH-456]
+ - `vagrant ssh -c` output no longer has a prefix and respects newlines
+   from the output. [GH-462]
+
+## 0.8.2 (July 22, 2011)
+
+  - Fix issue with SSH disconnects not reconnecting.
+  - Fix chef solo simply not working with roles/data bags. [GH-425]
+  - Multiple chef solo provisioners now work together.
+  - Update Puppet provisioner so no deprecation warning is shown. [GH-421]
+  - Removed error on "provisioner=" in config, as this has not existed
+    for some time now.
+  - Add better validation for networking.
+
+## 0.8.1 (July 20, 2011)
+
+  - Repush of 0.8.0 to fix a Ruby 1.9.2 RubyGems issue.
+
+## 0.8.0 (July 20, 2011)
+
+  - VirtualBox 4.1 support _only_. Previous versions of VirtualBox
+    are supported by earlier versions of Vagrant.
   - Performance optimizations in `virtualbox` gem. Huge speed gains.
   - `:chef_server` provisioner is now `:chef_client`. [GH-359]
   - SSH connection is now cached after first access internally,
@@ -27,6 +77,17 @@
   - Vagrantfile can be lowercase now. [GH-399]
   - Only one copy of Vagrant may be running at any given time. [GH-364]
   - Default home directory for Vagrant moved to `~/.vagrant.d` [GH-333]
+  - Specify a `forwarded_port_destination` for SSH configuration and
+    SSH port searching will fall back to that if it can't find any
+    other port. [GH-375]
+
+## 0.7.8 (July 19, 2011)
+
+  - Make sure VirtualBox version check verifies that it is 4.0.x.
+
+## 0.7.7 (July 12, 2011)
+
+  - Fix crashing bug with Psych and Ruby 1.9.2. [GH-411]
 
 ## 0.7.6 (July 2, 2011)
 

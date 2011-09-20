@@ -11,11 +11,11 @@ class EnvironmentTest < Test::Unit::TestCase
 
   context "class method check virtualbox version" do
     setup do
-      VirtualBox.stubs(:version).returns("4.0.0")
+      VirtualBox.stubs(:version).returns("4.1.0")
     end
 
     should "not error and exit if everything is good" do
-      VirtualBox.expects(:version).returns("4.0.0")
+      VirtualBox.expects(:version).returns("4.1.0")
       assert_nothing_raised { @klass.check_virtualbox! }
     end
 
@@ -256,12 +256,9 @@ class EnvironmentTest < Test::Unit::TestCase
 
   context "loading logger" do
     should "lazy load the logger only once" do
-      result = Vagrant::Util::ResourceLogger.new("vagrant", vagrant_env)
-      Vagrant::Util::ResourceLogger.expects(:new).returns(result).once
       env = vagrant_env
-      assert_equal result, env.logger
-      assert_equal result, env.logger
-      assert_equal result, env.logger
+      result = env.logger
+      assert result === env.logger
     end
 
     should "return the parent's logger if a parent exists" do
@@ -270,10 +267,7 @@ class EnvironmentTest < Test::Unit::TestCase
         config.vm.define :db
       vf
 
-      result = env.logger
-
-      Vagrant::Util::ResourceLogger.expects(:new).never
-      assert env.vms[:web].env.logger.equal?(result)
+      assert env.logger === env.vms[:web].env.logger
     end
   end
 
@@ -529,11 +523,6 @@ class EnvironmentTest < Test::Unit::TestCase
         assert_equal "root.box", @env.config.package.name
         assert_equal "web.box", @env.vms[:web].env.config.package.name
         assert_equal "set", @env.vms[:web].env.config.vm.base_mac
-      end
-
-      should "reload the logger after executing" do
-        @env.load_config!
-        assert @env.instance_variable_get(:@logger).nil?
       end
 
       should "be able to reload config" do

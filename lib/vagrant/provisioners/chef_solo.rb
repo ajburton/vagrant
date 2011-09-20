@@ -4,6 +4,9 @@ module Vagrant
     class ChefSolo < Chef
       register :chef_solo
 
+      extend Util::Counter
+      include Util::Counter
+
       class Config < Chef::Config
         attr_accessor :cookbooks_path
         attr_accessor :roles_path
@@ -15,8 +18,8 @@ module Vagrant
           super
 
           @cookbooks_path = ["cookbooks", [:vm, "cookbooks"]]
-          @roles_path = []
-          @data_bags_path = []
+          @roles_path = nil
+          @data_bags_path = nil
           @nfs = false
         end
 
@@ -52,11 +55,12 @@ module Vagrant
 
       # Converts paths to a list of properly expanded paths with types.
       def expanded_folders(paths)
+        return [] if paths.nil?
+
         # Convert the path to an array if it is a string or just a single
         # path element which contains the folder location (:host or :vm)
         paths = [paths] if paths.is_a?(String) || paths.first.is_a?(Symbol)
 
-        index = 0
         paths.map do |path|
           path = [:host, path] if !path.is_a?(Array)
           type, path = path
@@ -65,8 +69,15 @@ module Vagrant
           # or VM path.
           local_path = nil
           local_path = File.expand_path(path, env.root_path) if type == :host
-          remote_path = type == :host ? "#{config.provisioning_path}/chef-solo-#{index}" : path
-          index += 1
+          remote_path = nil
+          if type == :host
+            # Path exists on the host, setup the remote path
+            remote_path = "#{config.provisioning_path}/chef-solo-#{get_and_update_counter(:cookbooks_path)}"
+          else
+            # Path already exists on the virtual machine. Expand it
+            # relative to where we're provisioning.
+            remote_path = File.expand_path(path, config.provisioning_path)
+          end
 
           # Return the result
           [type, local_path, remote_path]
@@ -76,20 +87,18 @@ module Vagrant
       # Shares the given folders with the given prefix. The folders should
       # be of the structure resulting from the `expanded_folders` function.
       def share_folders(prefix, folders)
-        index = 0
         folders.each do |type, local_path, remote_path|
           if type == :host
-            env.config.vm.share_folder("v-#{prefix}-#{index}",
+            env.config.vm.share_folder("v-#{prefix}-#{self.class.get_and_update_counter(:shared_folder)}",
                                        remote_path, local_path, :nfs => config.nfs)
-            index += 1
           end
         end
       end
 
       def setup_solo_config
         cookbooks_path = guest_paths(@cookbook_folders)
-        roles_path = guest_paths(@role_folders)
-        data_bags_path = guest_paths(@data_bags_folders)
+        roles_path = guest_paths(@role_folders).first
+        data_bags_path = guest_paths(@data_bags_folders).first
 
         setup_config("chef_solo_solo", "solo.rb", {
           :node_name => config.node_name,

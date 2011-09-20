@@ -1,5 +1,6 @@
 require 'pathname'
 require 'fileutils'
+require 'logger'
 
 module Vagrant
   # Represents a single Vagrant environment. A "Vagrant environment" is
@@ -38,7 +39,7 @@ module Vagrant
       def check_virtualbox!
         version = VirtualBox.version
         raise Errors::VirtualBoxNotDetected if version.nil?
-        raise Errors::VirtualBoxInvalidVersion, :version => version.to_s if version.to_f < 4.0
+        raise Errors::VirtualBoxInvalidVersion, :version => version.to_s if version.to_f < 4.1 || version.to_f >= 4.2
       rescue Errors::VirtualBoxNotDetected
         # On 64-bit Windows, show a special error. This error is a subclass
         # of VirtualBoxNotDetected, so libraries which use Vagrant can just
@@ -79,6 +80,11 @@ module Vagrant
 
       @loaded = false
       @lock_acquired = false
+
+      logger.info("environment") { "Environment initialized (#{self})" }
+      logger.info("environment") { "  - cwd: #{cwd}" }
+      logger.info("environment") { "  - parent: #{parent}" }
+      logger.info("environment") { "  - vm: #{vm}" }
     end
 
     #---------------------------------------------------------------
@@ -97,15 +103,19 @@ module Vagrant
     #
     # @return [Pathname]
     def home_path
+      return parent.home_path if parent
       return @_home_path if defined?(@_home_path)
 
       @_home_path ||= Pathname.new(File.expand_path(ENV["VAGRANT_HOME"] || DEFAULT_HOME))
+      logger.info("environment") { "Home path: #{@_home_path}" }
 
       # This is the old default that Vagrant used to be put things into
       # up until Vagrant 0.8.0. We keep around an automatic migration
       # script here in case any old users upgrade.
       old_home = File.expand_path("~/.vagrant")
       if File.exists?(old_home) && File.directory?(old_home)
+        logger.info("environment") { "Found both an old and new Vagrantfile. Migration initiated." }
+
         # We can't migrate if the home directory already exists
         if File.exists?(@_home_path)
           ui.warn I18n.t("vagrant.general.home_dir_migration_failed",
@@ -282,7 +292,27 @@ module Vagrant
     # @return [Logger]
     def logger
       return parent.logger if parent
-      @logger ||= Util::ResourceLogger.new(resource, self)
+      return @logger if @logger
+
+      # Figure out where the output should go to.
+      output = nil
+      if ENV["VAGRANT_LOG"] == "STDOUT"
+        output = STDOUT
+      elsif ENV["VAGRANT_LOG"] == "NULL"
+        output = nil
+      elsif ENV["VAGRANT_LOG"]
+        output = ENV["VAGRANT_LOG"]
+      else
+        output = nil #log_path.join("#{Time.now.to_i}.log")
+      end
+
+      # Create the logger and custom formatter
+      @logger = Logger.new(output)
+      @logger.formatter = Proc.new do |severity, datetime, progname, msg|
+        "#{datetime} - #{progname} - [#{resource}] #{msg}\n"
+      end
+
+      @logger
     end
 
     # The root path is the path where the top-most (loaded last)
@@ -294,10 +324,13 @@ module Vagrant
       return @root_path if defined?(@root_path)
 
       root_finder = lambda do |path|
-        vagrantfile_name.each do |rootfile|
-          return path if File.exist?(File.join(path.to_s, rootfile))
+        # Note: To remain compatible with Ruby 1.8, we have to use
+        # a `find` here instead of an `each`.
+        found = vagrantfile_name.find do |rootfile|
+          File.exist?(File.join(path.to_s, rootfile))
         end
 
+        return path if found
         return nil if path.root? || !File.exist?(path)
         root_finder.call(path.parent)
       end
@@ -370,7 +403,15 @@ module Vagrant
     def load!
       if !loaded?
         @loaded = true
-        self.class.check_virtualbox!
+
+        if !parent
+          # We only need to check the virtualbox version once, so do it on
+          # the parent most environment and then forget about it
+          logger.info("environment") { "Environment not loaded. Checking virtual box version..." }
+          self.class.check_virtualbox!
+        end
+
+        logger.info("environment") { "Loading configuration..." }
         load_config!
       end
 
@@ -398,9 +439,23 @@ module Vagrant
       @config_loader.set(:default, File.expand_path("config/default.rb", Vagrant.source_root))
 
       vagrantfile_name.each do |rootfile|
-        @config_loader.set(:box, File.join(box.directory, rootfile)) if !first_run && vm && box
-        @config_loader.set(:home, File.join(home_path, rootfile)) if !first_run && home_path
-        @config_loader.set(:root, File.join(root_path, rootfile)) if root_path
+        if !first_run && vm && box
+          # We load the box Vagrantfile
+          box_vagrantfile = box.directory.join(rootfile)
+          @config_loader.set(:box, box_vagrantfile) if box_vagrantfile.exist?
+        end
+
+        if !first_run && home_path
+          # Load the home Vagrantfile
+          home_vagrantfile = home_path.join(rootfile)
+          @config_loader.set(:home, home_vagrantfile) if home_vagrantfile.exist?
+        end
+
+        if root_path
+          # Load the Vagrantfile in this directory
+          root_vagrantfile = root_path.join(rootfile)
+          @config_loader.set(:root, root_vagrantfile) if root_vagrantfile.exist?
+        end
       end
 
       # If this environment is representing a sub-VM, then we push that
@@ -413,9 +468,6 @@ module Vagrant
       # Execute the configuration stack and store the result as the final
       # value in the config ivar.
       @config = @config_loader.load(self)
-
-      # (re)load the logger
-      @logger = nil
 
       if first_run
         # After the first run we want to load the configuration again since

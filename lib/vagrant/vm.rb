@@ -51,6 +51,7 @@ module Vagrant
     # **This method should never be called manually.**
     def load_system!(system=nil)
       system ||= env.config.vm.system
+      env.logger.info("vm: #{name}") { "Loading system: #{system}" }
 
       if system.is_a?(Class)
         raise Errors::VMSystemError, :_key => :invalid_class, :system => system.to_s if !(system <= Systems::Base)
@@ -65,7 +66,8 @@ module Vagrant
           :redhat  => Systems::Redhat,
           :suse    => Systems::Suse,
           :linux   => Systems::Linux,
-          :solaris => Systems::Solaris
+          :solaris => Systems::Solaris,
+          :arch    => Systems::Arch
         }
 
         raise Errors::VMSystemError, :_key => :unknown_type, :system => system.to_s if !mapping.has_key?(system)
@@ -139,6 +141,7 @@ module Vagrant
     end
 
     def start(options=nil)
+      raise Errors::VMInaccessible if !@vm.accessible?
       return if @vm.running?
       return resume if @vm.saved?
 

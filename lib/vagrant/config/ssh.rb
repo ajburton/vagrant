@@ -6,16 +6,17 @@ module Vagrant
       attr_accessor :username
       attr_accessor :host
       attr_accessor :forwarded_port_key
+      attr_accessor :forwarded_port_destination
       attr_accessor :max_tries
       attr_accessor :timeout
       attr_writer :private_key_path
       attr_accessor :forward_agent
       attr_accessor :forward_x11
-      attr_accessor :sudo_shell
+      attr_accessor :shell
       attr_accessor :port
 
       def initialize
-        @sudo_shell = "bash"
+        @shell = "bash"
         @port = nil
         @forward_agent = false
         @forward_x11 = false

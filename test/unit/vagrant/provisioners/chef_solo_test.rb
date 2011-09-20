@@ -52,8 +52,16 @@ class ChefSoloProvisionerTest < Test::Unit::TestCase
     should "expand host folders properly" do
       path = "foo"
       local_path = File.expand_path(path, @env.root_path)
-      remote_path = "#{@action.config.provisioning_path}/chef-solo-0"
+      remote_path = "#{@action.config.provisioning_path}/chef-solo-1"
       assert_equal [[:host, local_path, remote_path]], @action.expanded_folders([:host, path])
+    end
+
+    should "share roles and cookbooks in different folders" do
+      local_roles_path = File.expand_path('roles',@env.root_path)
+      local_cookbooks_path = File.expand_path('cookbooks',@env.root_path)
+      remote_roles_path = @action.expanded_folders([:host,local_roles_path])[0][2]
+      remote_cookbooks_path = @action.expanded_folders([:host,local_cookbooks_path])[0][2]
+      assert_not_equal remote_roles_path, remote_cookbooks_path
     end
   end
 
@@ -78,8 +86,8 @@ class ChefSoloProvisionerTest < Test::Unit::TestCase
         :provisioning_path => @config.provisioning_path,
         :cookbooks_path => @action.guest_paths(@action.cookbook_folders),
         :recipe_url => @config.recipe_url,
-        :roles_path => @action.guest_paths(@action.role_folders),
-        :data_bags_path => @action.guest_paths(@action.data_bags_folders)
+        :roles_path => @action.guest_paths(@action.role_folders).first,
+        :data_bags_path => @action.guest_paths(@action.data_bags_folders).first
       })
 
       @action.setup_solo_config

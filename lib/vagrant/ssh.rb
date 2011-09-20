@@ -57,6 +57,7 @@ module Vagrant
       # (GH-51). As a workaround, we fork and wait. On all other platforms,
       # we simply exec.
       command = "ssh #{command_options.join(" ")} #{options[:username]}@#{options[:host]}".strip
+      env.logger.info("ssh") { "Invoking SSH: #{command}" }
       safe_exec(command)
     end
 
@@ -72,10 +73,26 @@ module Vagrant
       opts[:port] ||= port
 
       # Check if we have a currently open SSH session which has the
-      # same options, and use that if possible
-      session, options = @current_session
+      # same options, and use that if possible.
+      #
+      # NOTE: This is experimental and unstable. Therefore it is disabled
+      # by default.
+      session, options = nil
+      session, options = @current_session if env.config.vagrant.ssh_session_cache
+
+      if session && options == opts
+        # Verify that the SSH session is still valid
+        begin
+          session.exec!("echo foo")
+        rescue IOError
+          # Reset the session, we need to reconnect
+          session = nil
+        end
+      end
 
       if !session || options != opts
+        env.logger.info("ssh") { "Connecting to SSH: #{env.config.ssh.host} #{opts[:port]}" }
+
         # The exceptions which are acceptable to retry on during
         # attempts to connect to SSH
         exceptions = [Errno::ECONNREFUSED, Net::SSH::Disconnect]
@@ -94,6 +111,8 @@ module Vagrant
 
         # Save the new session along with the options which created it
         @current_session = [session, opts]
+      else
+        env.logger.info("ssh") { "Using cached SSH session: #{session}" }
       end
 
       # Yield our session for executing
@@ -143,11 +162,14 @@ module Vagrant
       # Windows systems don't have this issue
       return if Util::Platform.windows?
 
+      env.logger.info("ssh") { "Checking key permissions: #{key_path}" }
+
       stat = File.stat(key_path)
 
       if stat.owned? && file_perms(key_path) != "600"
-        File.chmod(0600, key_path)
+        env.logger.info("ssh") { "Attempting to correct key permissions to 0600" }
 
+        File.chmod(0600, key_path)
         raise Errors::SSHKeyBadPermissions, :key_path => key_path if file_perms(key_path) != "600"
       end
     rescue Errno::EPERM
@@ -168,23 +190,32 @@ module Vagrant
     # `config.ssh.forwarded_port_key`.
     def port(opts={})
       # Check if port was specified in options hash
-      pnum = opts[:port]
-      return pnum if pnum
+      return opts[:port] if opts[:port]
 
       # Check if a port was specified in the config
       return env.config.ssh.port if env.config.ssh.port
 
       # Check if we have an SSH forwarded port
-      pnum = nil
+      pnum_by_name = nil
+      pnum_by_destination = nil
       env.vm.vm.network_adapters.each do |na|
-        pnum = na.nat_driver.forwarded_ports.detect do |fp|
+        # Look for the port number by name...
+        pnum_by_name = na.nat_driver.forwarded_ports.detect do |fp|
           fp.name == env.config.ssh.forwarded_port_key
         end
 
-        break if pnum
+        # Look for the port number by destination...
+        pnum_by_destination = na.nat_driver.forwarded_ports.detect do |fp|
+          fp.guestport == env.config.ssh.forwarded_port_destination
+        end
+
+        # pnum_by_name is what we're looking for here, so break early
+        # if we have it.
+        break if pnum_by_name
       end
 
-      return pnum.hostport if pnum
+      return pnum_by_name.hostport if pnum_by_name
+      return pnum_by_destination.hostport if pnum_by_destination
 
       # This should NEVER happen.
       raise Errors::SSHPortNotDetected
