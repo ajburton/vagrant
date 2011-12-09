@@ -19,7 +19,6 @@ module Vagrant
 
     def initialize(environment)
       @env = environment
-      @current_session = nil
     end
 
     # Connects to the environment's virtual machine, replacing the ruby
@@ -53,9 +52,6 @@ module Vagrant
         command_options << "-o ForwardX11Trusted=yes"
       end
 
-      # Some hackery going on here. On Mac OS X Leopard (10.5), exec fails
-      # (GH-51). As a workaround, we fork and wait. On all other platforms,
-      # we simply exec.
       command = "ssh #{command_options.join(" ")} #{options[:username]}@#{options[:host]}".strip
       env.logger.info("ssh") { "Invoking SSH: #{command}" }
       safe_exec(command)
@@ -72,47 +68,22 @@ module Vagrant
       opts[:forward_agent] = true if env.config.ssh.forward_agent
       opts[:port] ||= port
 
-      # Check if we have a currently open SSH session which has the
-      # same options, and use that if possible.
-      #
-      # NOTE: This is experimental and unstable. Therefore it is disabled
-      # by default.
-      session, options = nil
-      session, options = @current_session if env.config.vagrant.ssh_session_cache
+      env.logger.info("ssh") { "Connecting to SSH: #{env.config.ssh.host} #{opts[:port]}" }
 
-      if session && options == opts
-        # Verify that the SSH session is still valid
-        begin
-          session.exec!("echo foo")
-        rescue IOError
-          # Reset the session, we need to reconnect
-          session = nil
-        end
-      end
+      # The exceptions which are acceptable to retry on during
+      # attempts to connect to SSH
+      exceptions = [Errno::ECONNREFUSED, Net::SSH::Disconnect]
 
-      if !session || options != opts
-        env.logger.info("ssh") { "Connecting to SSH: #{env.config.ssh.host} #{opts[:port]}" }
-
-        # The exceptions which are acceptable to retry on during
-        # attempts to connect to SSH
-        exceptions = [Errno::ECONNREFUSED, Net::SSH::Disconnect]
-
-        # Connect to SSH and gather the session
-        session = retryable(:tries => 5, :on => exceptions) do
-          connection = Net::SSH.start(env.config.ssh.host,
-                         env.config.ssh.username,
-                         opts.merge( :keys => [env.config.ssh.private_key_path],
-                                     :keys_only => true,
-                                     :user_known_hosts_file => [],
-                                     :paranoid => false,
-                                     :config => false))
-          SSH::Session.new(connection, env)
-        end
-
-        # Save the new session along with the options which created it
-        @current_session = [session, opts]
-      else
-        env.logger.info("ssh") { "Using cached SSH session: #{session}" }
+      # Connect to SSH and gather the session
+      session = retryable(:tries => env.config.ssh.max_tries, :on => exceptions) do
+        connection = Net::SSH.start(env.config.ssh.host,
+                                    env.config.ssh.username,
+                                    opts.merge( :keys => [env.config.ssh.private_key_path],
+                                                :keys_only => true,
+                                                :user_known_hosts_file => [],
+                                                :paranoid => false,
+                                                :config => false))
+        SSH::Session.new(connection, env)
       end
 
       # Yield our session for executing
@@ -144,15 +115,19 @@ module Vagrant
 
       require 'timeout'
       Timeout.timeout(env.config.ssh.timeout) do
-        execute(:timeout => env.config.ssh.timeout,
-                :port => ssh_port) { |ssh| }
+        execute(:timeout => env.config.ssh.timeout, :port => ssh_port) do |ssh|
+          # We run a basic command to test that the shell is up and
+          # ready to receive commands. Only then is our SSH connection
+          # truly "up"
+          return ssh.exec!("echo hello") == "hello\n"
+        end
       end
 
-      true
+      false
     rescue Net::SSH::AuthenticationFailed
       raise Errors::SSHAuthenticationFailed
     rescue Timeout::Error, Errno::ECONNREFUSED, Net::SSH::Disconnect,
-           Errors::SSHConnectionRefused, Net::SSH::AuthenticationFailed
+           Errors::SSHConnectionRefused
       return false
     end
 

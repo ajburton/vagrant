@@ -8,6 +8,7 @@ module Vagrant
       include Util::Retryable
 
       def self.distro_dispatch
+        return FreeBSD if Util::Platform.freebsd?
         return self if Util::Platform.darwin? || Util::Platform.bsd?
       end
 
