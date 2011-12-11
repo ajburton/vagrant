@@ -1,5 +1,5 @@
 module Vagrant
-  class Action
+  module Action
     module VM
       class ClearForwardedPorts
         def initialize(app, env)
@@ -8,7 +8,7 @@ module Vagrant
 
         def call(env)
           proc = lambda do |vm|
-            env.ui.info I18n.t("vagrant.actions.vm.clear_forward_ports.deleting")
+            env[:ui].info I18n.t("vagrant.actions.vm.clear_forward_ports.deleting")
 
             vm.network_adapters.each do |na|
               na.nat_driver.forwarded_ports.dup.each do |fp|

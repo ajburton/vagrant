@@ -1,5 +1,5 @@
 module Vagrant
-  class Action
+  module Action
     module VM
       class Provision
         def initialize(app, env)
@@ -18,13 +18,13 @@ module Vagrant
 
           # Take prepared provisioners and run the provisioning
           provisioners.each do |instance|
-            @env.ui.info I18n.t("vagrant.actions.vm.provision.beginning", :provisioner => instance.class)
+            @env[:ui].info I18n.t("vagrant.actions.vm.provision.beginning", :provisioner => instance.class)
             instance.provision!
           end
         end
 
         def enabled_provisioners
-          @env["config"].vm.provisioners.map do |provisioner|
+          @env[:vm].config.vm.provisioners.map do |provisioner|
             provisioner.provisioner.new(@env, provisioner.config)
           end
         end

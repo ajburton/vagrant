@@ -1,28 +1,18 @@
-require "test_helper"
+require File.expand_path("../../../base", __FILE__)
 
-class BaseDownloaderTest < Test::Unit::TestCase
-  should "include the util class so subclasses have access to it" do
-    assert Vagrant::Downloaders::Base.include?(Vagrant::Util)
+describe Vagrant::Downloaders::Base do
+  let(:ui) { double("ui") }
+  let(:instance) { described_class.new(ui) }
+
+  it "should not match anything by default" do
+    described_class.match?("foo").should_not be
   end
 
-  context "base instance" do
-    setup do
-      @env = vagrant_env
-      @base = Vagrant::Downloaders::Base.new(@env)
-    end
+  it "should implement `prepare`" do
+    instance.prepare("foo").should be_nil
+  end
 
-    should "implement prepare which does nothing" do
-      assert_nothing_raised do
-        assert @base.respond_to?(:prepare)
-        @base.prepare("source")
-      end
-    end
-
-    should "implement download! which does nothing" do
-      assert_nothing_raised do
-        assert @base.respond_to?(:download!)
-        @base.download!("source", "destination")
-      end
-    end
+  it "should implement `download!`" do
+    instance.download!("foo", "bar").should be_nil
   end
 end

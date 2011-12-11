@@ -1,45 +1,56 @@
-require "test_helper"
+require File.expand_path("../../base", __FILE__)
 
-class BoxCollectionTest < Test::Unit::TestCase
-  setup do
-    clean_paths
+describe Vagrant::BoxCollection do
+  include_context "unit"
 
-    @klass = Vagrant::BoxCollection
-  end
+  let(:environment) { isolated_environment }
+  let(:action_runner) { double("action runner") }
+  let(:instance)    { described_class.new(environment.boxes_dir, action_runner) }
 
-  should "load all the boxes from the box path" do
-    vagrant_box("foo")
-    vagrant_box("bar")
+  it "should list all available boxes" do
+    # No boxes yet.
+    instance.length.should == 0
 
-    result = @klass.new(vagrant_env)
-    names = result.collect { |b| b.name }.sort
-    assert result.length >= 2
-    assert names.include?("foo")
-    assert names.include?("bar")
-  end
-
-  should "reload the box list" do
-    instance = @klass.new(vagrant_env)
-    amount = instance.length
-
-    vagrant_box("foo")
-
+    # Add some boxes to the environment and try again
+    environment.box("foo")
+    environment.box("bar")
     instance.reload!
-    assert_equal (amount + 1), instance.length
+    instance.length.should == 2
   end
 
-  should "find a specific box" do
-    vagrant_box("foo")
-    vagrant_box("bar")
+  describe "finding" do
+    it "should return nil if it can't find the box" do
+      instance.find("foo").should be_nil
+    end
 
-    instance = @klass.new(vagrant_env)
-    result = instance.find("foo")
-    assert result
-    assert_equal "foo", result.name
+    it "should return a box instance for any boxes it does find" do
+      environment.box("foo")
+      result = instance.find("foo")
+      result.should be_kind_of(Vagrant::Box)
+      result.name.should == "foo"
+    end
   end
 
-  should "return nil if it couldn't find a specific box" do
-    instance = @klass.new(vagrant_env)
-    assert_nil instance.find("thisshouldnotexist")
+  it "should throw an error if the box already exists when adding" do
+    environment.box("foo")
+    expect { instance.add("foo", "bar") }.to raise_error(Vagrant::Errors::BoxAlreadyExists)
+  end
+
+  it "should add the box" do
+    name = "foo"
+    url  = "bar"
+
+    # Test the invocation of the action runner with the proper name
+    # and parameters. We leave the testing of the actual stack to
+    # acceptance tests, and individual pieces to unit tests of each
+    # step.
+    options = {
+      :box_name => name,
+      :box_url => url,
+      :box_directory => instance.directory.join(name)
+    }
+    action_runner.should_receive(:run).with(:box_add, options)
+
+    instance.add(name, url)
   end
 end

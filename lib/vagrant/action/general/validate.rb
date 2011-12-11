@@ -1,5 +1,5 @@
 module Vagrant
-  class Action
+  module Action
     module General
       # Simply validates the configuration of the current Vagrant
       # environment.
@@ -10,7 +10,7 @@ module Vagrant
         end
 
         def call(env)
-          @env["config"].validate! if !@env.has_key?("validate") || @env["validate"]
+          @env[:vm].config.validate!(@env[:vm].env) if !@env.has_key?("validate") || @env["validate"]
           @app.call(@env)
         end
       end

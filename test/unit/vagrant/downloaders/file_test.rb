@@ -1,48 +1,38 @@
-require "test_helper"
+require File.expand_path("../../../base", __FILE__)
 
-class FileDownloaderTest < Test::Unit::TestCase
-  setup do
-    @downloader, @tempfile = vagrant_mock_downloader(Vagrant::Downloaders::File)
-    @uri = "foo.box"
-  end
+describe Vagrant::Downloaders::File do
+  let(:ui) { double("ui") }
+  let(:instance) { described_class.new(ui) }
 
-  context "preparing" do
-    should "raise an exception if the file does not exist" do
-      File.expects(:file?).with(@uri).returns(false)
+  describe "matching" do
+    it "should match an existing file" do
+      described_class.match?(__FILE__).should be
+    end
 
-      assert_raises(Vagrant::Errors::DownloaderFileDoesntExist) {
-        @downloader.prepare(@uri)
-      }
+    it "should not match non-existent files" do
+      described_class.match?(File.join(__FILE__, "nowaywaywaywayayway")).should_not be
     end
   end
 
-  context "downloading" do
-    setup do
-      clean_paths
+  describe "preparing" do
+    it "should raise an exception if the file does not exist" do
+      path = File.join(__FILE__, "nopenopenope")
+      File.exist?(path).should_not be
+
+      expect { instance.prepare(path) }.to raise_error(Vagrant::Errors::DownloaderFileDoesntExist)
     end
 
-    should "cp the file" do
-      uri = tmp_path.join("foo_source")
-      dest = tmp_path.join("foo_dest")
+    it "should raise an exception if the file is a directory" do
+      path = File.dirname(__FILE__)
+      File.should be_directory(path)
 
-      # Create the source file, then "download" it
-      File.open(uri, "w+") { |f| f.write("FOO") }
-      File.open(dest, "w+") do |dest_file|
-        @downloader.download!(uri, dest_file)
-      end
-
-      # Finally, verify the destination file was properly created
-      assert File.file?(dest)
-      File.open(dest) do |f|
-        assert_equal "FOO", f.read
-      end
+      expect { instance.prepare(path) }.to raise_error(Vagrant::Errors::DownloaderFileDoesntExist)
     end
   end
 
-  context "matching a uri" do
-    should "return true if the File exists on the file system" do
-      File.expects(:exists?).with('foo').returns(true)
-      assert Vagrant::Downloaders::File.match?('foo')
+  describe "downloading" do
+    it "should copy the source to the destination" do
+      pending "setup paths"
     end
   end
 end

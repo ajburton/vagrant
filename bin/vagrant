@@ -1,33 +1,54 @@
 #!/usr/bin/env ruby
+require 'log4r'
 require 'vagrant'
 require 'vagrant/cli'
 
-env = Vagrant::Environment.new
+# Create a logger right away
+logger = Log4r::Logger.new("vagrant::bin::vagrant")
+logger.info("`vagrant` invoked: #{ARGV.inspect}")
 
+# Stdout/stderr should not buffer output
+$stdout.sync = true
+$stderr.sync = true
+
+# These will be the options that are passed to initialze the Vagrant
+# environment.
+opts = {}
+
+# Disable color if the proper argument was passed
+if !$stdout.tty? || ARGV.include?("--no-color")
+  opts[:ui_class] = Vagrant::UI::Basic
+else
+  opts[:ui_class] = Vagrant::UI::Colored
+end
+
+env = nil
 begin
-  # Begin logging early here
-  env.logger.info("vagrant") { "`vagrant` invoked: #{ARGV.inspect}" }
+  # Create the environment, which is the cwd of wherever the
+  # `vagrant` command was invoked from
+  logger.debug("Creating Vagrant environment")
+  env = Vagrant::Environment.new(opts)
 
-  # Disable color if the proper argument was passed
-  shell = nil
-  if !$stdout.tty? || ARGV.include?("--no-color")
-    shell = Thor::Shell::Basic.new
-  else
-    shell = Thor::Base.shell.new
-  end
-
-  # Set the UI early in case any errors are raised, and load
-  # the config immediately, so we gather any new commands from
-  # plugins
-  env.ui = Vagrant::UI::Shell.new(env, shell)
+  # Load the environment
+  logger.debug("Loading environment")
   env.load!
 
   # Kick start the CLI
   Vagrant::CLI.start(ARGV, :env => env)
 rescue Vagrant::Errors::VagrantError => e
-  opts = { :prefix => false }
-  env.ui.error e.message, opts if e.message
-  env.ui.error e.backtrace.join("\n"), opts if ENV["VAGRANT_DEBUG"]
+  logger.error("Vagrant experienced an error! Details:")
+  logger.error(e.inspect)
+  logger.error(e.message)
+  logger.error(e.backtrace.join("\n"))
+
+  if env
+    opts = { :prefix => false }
+    env.ui.error e.message, opts if e.message
+  else
+    $stderr.puts "Vagrant failed to initialize at a very early stage:\n\n"
+    $stderr.puts e.message
+  end
+
   exit e.status_code if e.respond_to?(:status_code)
   exit 999 # An error occurred with no status code defined
 end

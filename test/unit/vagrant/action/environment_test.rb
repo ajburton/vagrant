@@ -1,27 +1,22 @@
-require "test_helper"
+require File.expand_path("../../../base", __FILE__)
 
-class ActionEnvironmentTest < Test::Unit::TestCase
-  setup do
-    @klass = Vagrant::Action::Environment
-    @instance = @klass.new(vagrant_env)
+describe Vagrant::Action::Environment do
+  let(:instance) { described_class.new }
+
+  it "should be a hash" do
+    instance.should be_empty
+    instance["foo"] = "bar"
+    instance["foo"].should == "bar"
   end
 
-  should "be a hash with indifferent access" do
-    assert @instance.is_a?(Vagrant::Util::HashWithIndifferentAccess)
+  it "should be a hash accessible by string or symbol" do
+    instance["foo"] = "bar"
+    instance[:foo].should == "bar"
   end
 
-  should "default values to those on the env" do
-    @instance.env.stubs(:key).returns("value")
-    assert_equal "value", @instance["key"]
-  end
-
-  should "setup the UI" do
-    assert_equal @instance.env.ui, @instance.ui
-  end
-
-  should "report interrupted if interrupt error" do
-    assert !@instance.interrupted?
-    @instance.interrupt!
-    assert @instance.interrupted?
+  it "should keep track of interrupted state" do
+    instance.should_not be_interrupted
+    instance.interrupt!
+    instance.should be_interrupted
   end
 end

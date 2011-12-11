@@ -2,26 +2,20 @@ require 'forwardable'
 
 module Vagrant
   # Represents a collection of boxes, providing helpful methods for
-  # finding boxes. An instance of this is returned by {Environment#boxes}.
-  #
-  # # Finding a Box
-  #
-  # To find a box, use the {#find} method with the name of the box. The name
-  # is an exact match search.
-  #
-  #     env.boxes.find("base") # => #<Vagrant::Box>
-  #
+  # finding boxes.
   class BoxCollection
     include Enumerable
     extend Forwardable
     def_delegators :@boxes, :length, :each
 
-    # The environment this box collection belongs to
-    attr_reader :env
+    # The directory that the boxes are being searched for.
+    attr_reader :directory
 
-    def initialize(env)
-      @env = env
-      @boxes = []
+    # Initializes the class to search for boxes in the given directory.
+    def initialize(directory, action_runner)
+      @directory     = directory
+      @boxes         = []
+      @action_runner = action_runner
 
       reload!
     end
@@ -36,15 +30,26 @@ module Vagrant
       nil
     end
 
+    # Adds a box to this collection with the given name and located
+    # at the given URL.
+    def add(name, url)
+      raise Errors::BoxAlreadyExists, :name => name if find(name)
+
+      @action_runner.run(:box_add,
+                         :box_name => name,
+                         :box_url => url,
+                         :box_directory => @directory.join(name))
+    end
+
     # Loads the list of all boxes from the source. This modifies the
     # current array.
     def reload!
       @boxes.clear
 
-      Dir.open(env.boxes_path) do |dir|
+      Dir.open(@directory) do |dir|
         dir.each do |d|
-          next if d == "." || d == ".." || !File.directory?(env.boxes_path.join(d))
-          @boxes << Box.new(env, d)
+          next if d == "." || d == ".." || !@directory.join(d).directory?
+          @boxes << Box.new(d, @directory.join(d), @action_runner)
         end
       end
     end

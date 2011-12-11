@@ -1,5 +1,5 @@
 module Vagrant
-  class Action
+  module Action
     module VM
       # Networking middleware for Vagrant. This enables host only
       # networking on VMs if configured as such.
@@ -12,7 +12,7 @@ module Vagrant
             raise Errors::NetworkNotImplemented
           end
 
-          env["config"].vm.network_options.compact.each do |network_options|
+          env[:vm].config.vm.network_options.compact.each do |network_options|
             raise Errors::NetworkCollision if !verify_no_bridge_collision(network_options)
           end
         end
@@ -24,10 +24,10 @@ module Vagrant
           @app.call(env)
 
           if enable_network?
-            @env.ui.info I18n.t("vagrant.actions.vm.network.enabling")
+            @env[:ui].info I18n.t("vagrant.actions.vm.network.enabling")
 
             # Prepare for new networks...
-            options = @env.env.config.vm.network_options.compact
+            options = @env[:vm].config.vm.network_options.compact
             options.each do |network_options|
               @env["vm"].system.prepare_host_only_network(network_options)
             end
@@ -59,15 +59,15 @@ module Vagrant
         end
 
         def enable_network?
-          !@env.env.config.vm.network_options.compact.empty?
+          !@env[:vm].config.vm.network_options.compact.empty?
         end
 
         # Enables and assigns the host only network to the proper
         # adapter on the VM, and saves the adapter.
         def assign_network
-          @env.ui.info I18n.t("vagrant.actions.vm.network.preparing")
+          @env[:ui].info I18n.t("vagrant.actions.vm.network.preparing")
 
-          @env.env.config.vm.network_options.compact.each do |network_options|
+          @env[:vm].config.vm.network_options.compact.each do |network_options|
             adapter = @env["vm"].vm.network_adapters[network_options[:adapter]]
             adapter.enabled = true
             adapter.attachment_type = :host_only
@@ -98,7 +98,7 @@ module Vagrant
           raise Errors::NetworkNotFound, :name => net_options[:name] if net_options[:name]
 
           # One doesn't exist, create it.
-          @env.ui.info I18n.t("vagrant.actions.vm.network.creating")
+          @env[:ui].info I18n.t("vagrant.actions.vm.network.creating")
 
           ni = interfaces.create
           ni.enable_static(network_ip(net_options[:ip], net_options[:netmask]),

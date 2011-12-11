@@ -1,5 +1,5 @@
 module Vagrant
-  class Action
+  module Action
     module VM
       # This class allows other actions on the virtual machine object
       # to be consolidated under a single write lock. This vastly speeds
@@ -25,9 +25,9 @@ module Vagrant
         def call(env)
           # Run the procs we have saved up, save the machine, and reload
           # to verify we get the new settings
-          run_procs!(env["vm"].vm)
-          env["vm"].vm.save
-          env["vm"].reload!
+          run_procs!(env[:vm].vm)
+          env[:vm].vm.save
+          env[:vm].reload!
 
           @app.call(env)
         end

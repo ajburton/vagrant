@@ -1,5 +1,7 @@
+require "log4r"
+
 module Vagrant
-  class Action
+  module Action
     # The action warden is a middleware which injects itself between
     # every other middleware, watching for exceptions which are raised
     # and performing proper cleanup on every action by calling the `recover`
@@ -16,6 +18,7 @@ module Vagrant
       def initialize(actions, env)
         @stack = []
         @actions = actions.map { |m| finalize_action(m, env) }
+        @logger  = Log4r::Logger.new("vagrant::action::warden")
       end
 
       def call(env)
@@ -26,7 +29,7 @@ module Vagrant
           # of "recoverable" middlewares in case something goes wrong!
           raise Errors::VagrantInterrupt if env.interrupted?
           action = @actions.shift
-          env["logger"].info("warden") { "Calling action: #{action}" }
+          @logger.info("Calling action: #{action}")
           @stack.unshift(action).first.call(env)
           raise Errors::VagrantInterrupt if env.interrupted?
         rescue SystemExit
@@ -34,7 +37,7 @@ module Vagrant
           # we just exit immediately.
           raise
         rescue Exception => e
-          env["logger"].info("warden") { "Error occurred: #{e}" }
+          @logger.error("Error occurred: #{e}")
           env["vagrant.error"] = e
 
           # Something went horribly wrong. Start the rescue chain then
@@ -50,7 +53,7 @@ module Vagrant
       def begin_rescue(env)
         @stack.each do |act|
           if act.respond_to?(:recover)
-            env["logger"].info("warden") { "Calling recover: #{act}" }
+            @logger.info("Calling recover: #{act}")
             act.recover(env)
           end
         end

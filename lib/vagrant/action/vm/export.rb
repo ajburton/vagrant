@@ -1,7 +1,7 @@
 require 'fileutils'
 
 module Vagrant
-  class Action
+  module Action
     module VM
       class Export
         attr_reader :temp_dir
@@ -31,20 +31,20 @@ module Vagrant
         end
 
         def setup_temp_dir
-          @env.ui.info I18n.t("vagrant.actions.vm.export.create_dir")
-          @temp_dir = @env["export.temp_dir"] = @env.env.tmp_path.join(Time.now.to_i.to_s)
+          @env[:ui].info I18n.t("vagrant.actions.vm.export.create_dir")
+          @temp_dir = @env["export.temp_dir"] = @env[:tmp_path].join(Time.now.to_i.to_s)
           FileUtils.mkpath(@env["export.temp_dir"])
         end
 
         def export
-          @env.ui.info I18n.t("vagrant.actions.vm.export.exporting")
+          @env[:ui].info I18n.t("vagrant.actions.vm.export.exporting")
           @env["vm"].vm.export(ovf_path) do |progress|
-            @env.ui.report_progress(progress.percent, 100, false)
+            @env[:ui].report_progress(progress.percent, 100, false)
           end
         end
 
         def ovf_path
-          File.join(@env["export.temp_dir"], @env.env.config.vm.box_ovf)
+          File.join(@env["export.temp_dir"], "box.ovf")
         end
       end
     end

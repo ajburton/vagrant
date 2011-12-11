@@ -1,7 +1,7 @@
 require 'fileutils'
 
 module Vagrant
-  class Action
+  module Action
     module Box
       class Destroy
         def initialize(app, env)
@@ -10,8 +10,8 @@ module Vagrant
         end
 
         def call(env)
-          env.ui.info I18n.t("vagrant.actions.box.destroy.destroying", :name => env["box"].name)
-          FileUtils.rm_rf(env["box"].directory)
+          env[:ui].info I18n.t("vagrant.actions.box.destroy.destroying", :name => env[:box_name])
+          FileUtils.rm_rf(env[:box_directory])
 
           @app.call(env)
         end

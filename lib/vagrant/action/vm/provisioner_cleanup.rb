@@ -1,5 +1,5 @@
 module Vagrant
-  class Action
+  module Action
     module VM
       class ProvisionerCleanup
         def initialize(app, env)
@@ -16,7 +16,7 @@ module Vagrant
         end
 
         def enabled_provisioners
-          @env["config"].vm.provisioners.map do |provisioner|
+          @env[:vm].config.vm.provisioners.map do |provisioner|
             provisioner.provisioner.new(@env, provisioner.config)
           end
         end

@@ -1,3 +1,5 @@
+require 'log4r'
+
 module Vagrant
   class VM
     include Vagrant::Util
@@ -5,41 +7,20 @@ module Vagrant
     attr_reader :env
     attr_reader :name
     attr_reader :vm
+    attr_reader :box
+    attr_reader :config
 
-    class << self
-      # Finds a virtual machine by a given UUID and either returns
-      # a Vagrant::VM object or returns nil.
-      def find(uuid, env=nil, name=nil)
-        vm = VirtualBox::VM.find(uuid)
-        new(:vm => vm, :env => env, :name => name)
-      end
-    end
+    def initialize(name, env, config, vm=nil)
+      @logger = Log4r::Logger.new("vagrant::vm")
 
-    def initialize(opts=nil)
-      defaults = {
-        :vm => nil,
-        :env => nil,
-        :name => nil
-      }
+      @name   = name
+      @vm     = vm
+      @env    = env
+      @config = config
+      @box    = env.boxes.find(config.vm.box)
 
-      opts = defaults.merge(opts || {})
-
-      @vm = opts[:vm]
-      @name = opts[:name]
-
-      if !opts[:env].nil?
-        # We have an environment, so we create a new child environment
-        # specifically for this VM. This step will load any custom
-        # config and such.
-        @env = Vagrant::Environment.new({
-          :cwd => opts[:env].cwd,
-          :parent => opts[:env],
-          :vm => self
-        }).load!
-
-        # Load the associated system.
-        load_system!
-      end
+      # Load the associated system.
+      load_system!
 
       @loaded_system_distro = false
     end
@@ -50,8 +31,8 @@ module Vagrant
     #
     # **This method should never be called manually.**
     def load_system!(system=nil)
-      system ||= env.config.vm.system
-      env.logger.info("vm: #{name}") { "Loading system: #{system}" }
+      system ||= config.vm.system
+      @logger.info("Loading system: #{system}")
 
       if system.is_a?(Class)
         raise Errors::VMSystemError, :_key => :invalid_class, :system => system.to_s if !(system <= Systems::Base)
@@ -94,7 +75,7 @@ module Vagrant
     # On the initial call, this will initialize the object. On
     # subsequent calls it will reuse the existing object.
     def ssh
-      @ssh ||= SSH.new(env)
+      @ssh ||= SSH.new(self)
     end
 
     # Returns a boolean true if the VM has been created, otherwise
@@ -133,11 +114,11 @@ module Vagrant
     end
 
     def package(options=nil)
-      env.actions.run(:package, { "validate" => false }.merge(options || {}))
+      run_action(:package, { "validate" => false }.merge(options || {}))
     end
 
     def up(options=nil)
-      env.actions.run(:up, options)
+      run_action(:up, options)
     end
 
     def start(options=nil)
@@ -145,31 +126,31 @@ module Vagrant
       return if @vm.running?
       return resume if @vm.saved?
 
-      env.actions.run(:start, options)
+      run_action(:start, options)
     end
 
     def halt(options=nil)
-      env.actions.run(:halt, options)
+      run_action(:halt, options)
     end
 
     def reload
-      env.actions.run(:reload)
+      run_action(:reload)
     end
 
     def provision
-      env.actions.run(:provision)
+      run_action(:provision)
     end
 
     def destroy
-      env.actions.run(:destroy)
+      run_action(:destroy)
     end
 
     def suspend
-      env.actions.run(:suspend)
+      run_action(:suspend)
     end
 
     def resume
-      env.actions.run(:resume)
+      run_action(:resume)
     end
 
     def saved?
@@ -177,5 +158,23 @@ module Vagrant
     end
 
     def powered_off?; @vm.powered_off? end
+
+    def ui
+      return @_ui if defined?(@_ui)
+      @_ui = @env.ui.dup
+      @_ui.resource = @name
+      @_ui
+    end
+
+    protected
+
+    def run_action(name, options=nil)
+      options = {
+        :vm => self,
+        :ui => ui
+      }.merge(options || {})
+
+      env.action_runner.run(name, options)
+    end
   end
 end
